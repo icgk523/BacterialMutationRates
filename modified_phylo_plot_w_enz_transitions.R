@@ -4,6 +4,9 @@ require(nlme)
 require(tidyverse)
 require(evobiR)
 require(phyr)
+source("rsquared_gls_function.R")
+dir.create(file.path("results"), showWarnings = FALSE) # Create an output directory, suppress warnings if it already exists
+
 
 final_tree <- read.tree("20161115_pruned_tree_cutoff_0_03.nwk")
 enz_oi <- c("uvrA", "nfi", "mutT", "mutY", "mutL", "mutS", "mutH", "uvrD", "dnaQ", "ung", "mutM")
@@ -122,7 +125,7 @@ reordered_subset_data <- ReorderData(two_strain_tree, subset_data, taxa.names="r
 reordered_subset_data$Log_Wattersons_Corrected_Overall_Rate <- as.numeric(reordered_subset_data$Log_Wattersons_Corrected_Overall_Rate) # Keep it numeric
 
 genes = names(subset_data[4:14]) # names of genes we're looking at
-results_watterson <- data.frame(gene = character(), lambda = numeric(), linear_AIC = numeric(), pglmm_AIC = numeric(), linear_p_value = numeric(), pglmm_p_value = numeric(), stringsAsFactors = FALSE) # An empty data frame to store outputs
+results_watterson <- data.frame(gene = character(), lambda = numeric(), linear_AIC = numeric(), pglmm_AIC = numeric(), linear_p_value = numeric(), pglmm_p_value = numeric(), intercept = numeric(), slope = numeric(), r_squared = numeric(), stringsAsFactors = FALSE) # An empty data frame to store outputs
 
 
 for (gene in genes) {
@@ -135,27 +138,13 @@ for (gene in genes) {
   # Linear model statistics
   linear_AIC <- AIC(linear_model)
   linear_p_value <- coef(summary(linear_model))[8]
+  linear_intercept = coef(linear_model)[[1]]
+  linear_slope = coef(linear_model)[[2]]
+  linear_r_squared = summary(linear_model)$adj.r.squared
   
   # Add linear model results to the table
-  results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "linear", AIC = linear_AIC, p_value = linear_p_value, stringsAsFactors = FALSE))
-  
-  # Linear Null
-  linear_null_model <- lm(Log_Wattersons_Corrected_Overall_Rate ~ 1, data = reordered_subset_data)
-  linear_null_AIC <- AIC(linear_null_model)
-  linear_null_p_value <- coef(summary(linear_null_model))[8]
-  
-  # Add linear null model results to the table
-  results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "linear_null", AIC = linear_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-  
-  
-  # Fit PGLMM model
-  pglmm_model <- pglmm(Log_Wattersons_Corrected_Overall_Rate ~ gene_data + (1 | Species), data = reordered_subset_data, family = "gaussian", cov_ranef = list(Species = two_strain_tree), REML = FALSE)
-  pglmm_AIC <- pglmm_model$AIC
-  pglmm_p_value <- pglmm_model$B.pvalue[[2]]
-  
-  # Add PGLMM model results to the table
-  results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "pglmm", AIC = pglmm_AIC, p_value = pglmm_p_value, stringsAsFactors = FALSE))
-  
+  results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "linear", AIC = linear_AIC, p_value = linear_p_value, slope = linear_slope, intercept= linear_intercept, r_squared = linear_r_squared, stringsAsFactors = FALSE))
+
   # Adaptive lambda starting value search
   if (estimated_lambda <= 0.5) {
     search_lambdas <- seq(0, 1, by = 0.1)
@@ -169,107 +158,13 @@ for (gene in genes) {
       gls(Log_Wattersons_Corrected_Overall_Rate ~ gene_data, data = reordered_subset_data, correlation = corPagel(lambda_starting, two_strain_tree, form = ~Species), method = "ML")
     }, error = function(e) NULL)
     
-    pagel_null_model <- tryCatch({    # Try null model with corPagel
-      gls(Log_Wattersons_Corrected_Overall_Rate ~ 1, data = reordered_subset_data, correlation = corPagel(lambda_starting, two_strain_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
     if (!is.null(pagel_model)) {
       pagel_AIC <- AIC(pagel_model)
       pagel_p_value <- coef(summary(pagel_model))[8]
-      results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel", AIC = pagel_AIC, p_value = pagel_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(pagel_null_model)) {
-      pagel_null_AIC <- AIC(pagel_null_model)
-      results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel_null", AIC = pagel_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-      break
-    }
-  }
-  
-  for (lambda_starting in search_lambdas) {
-    blomberg_model <- tryCatch({    # Try corBlomberg
-      gls(Log_Wattersons_Corrected_Overall_Rate ~ gene_data, data = reordered_subset_data, correlation = corBlomberg(lambda_starting, two_strain_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    blomberg_null_model <- tryCatch({    # Try null model with corBlomberg
-      gls(Log_Wattersons_Corrected_Overall_Rate ~ 1, data = reordered_subset_data, correlation = corBlomberg(lambda_starting, two_strain_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    if (!is.null(blomberg_model)) {
-      blomberg_AIC <- AIC(blomberg_model)
-      blomberg_p_value <- coef(summary(blomberg_model))[8]
-      results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "blomberg", AIC = blomberg_AIC, p_value = blomberg_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(blomberg_null_model)) {
-      blomberg_null_AIC <- AIC(blomberg_null_model)
-      results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "blomberg_null", AIC = blomberg_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-      break
-    }
-  }
-  
-  for (lambda_starting in search_lambdas) {
-    brownian_model <- tryCatch({    # Try corBrownian
-      gls(Log_Wattersons_Corrected_Overall_Rate ~ gene_data, data = reordered_subset_data, correlation = corBrownian(lambda_starting, two_strain_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    brownian_null_model <- tryCatch({    # Try null model with corBrownian
-      gls(Log_Wattersons_Corrected_Overall_Rate ~ 1, data = reordered_subset_data, correlation = corBrownian(lambda_starting, two_strain_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    if (!is.null(brownian_model)) {
-      brownian_AIC <- AIC(brownian_model)
-      brownian_p_value <- coef(summary(brownian_model))[8]
-      results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "brownian", AIC = brownian_AIC, p_value = brownian_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(brownian_null_model)) {
-      brownian_null_AIC <- AIC(brownian_null_model)
-      results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "brownian_null", AIC = brownian_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-      break
-    }
-  }
-  
-  for (lambda_starting in search_lambdas) {
-    martins_model <- tryCatch({    # Try corMartins
-      gls(Log_Wattersons_Corrected_Overall_Rate ~ gene_data, data = reordered_subset_data, correlation = corMartins(lambda_starting, two_strain_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    martins_null_model <- tryCatch({    # Try null model with corMartins
-      gls(Log_Wattersons_Corrected_Overall_Rate ~ 1, data = reordered_subset_data, correlation = corMartins(lambda_starting, two_strain_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    if (!is.null(martins_model)) {
-      martins_AIC <- AIC(martins_model)
-      martins_p_value <- coef(summary(martins_model))[8]
-      results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "martins", AIC = martins_AIC, p_value = martins_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(martins_null_model)) {
-      martins_null_AIC <- AIC(martins_null_model)
-      results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "martins_null", AIC = martins_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-      break
-    }
-  }
-  
-  for (lambda_starting in search_lambdas) {
-    grafen_model <- tryCatch({    # Try corGrafen
-      gls(Log_Wattersons_Corrected_Overall_Rate ~ gene_data, data = reordered_subset_data, correlation = corGrafen(lambda_starting, two_strain_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    grafen_null_model <- tryCatch({    # Try null model with corGrafen
-      gls(Log_Wattersons_Corrected_Overall_Rate ~ 1, data = reordered_subset_data, correlation = corGrafen(lambda_starting, two_strain_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    if (!is.null(grafen_model)) {
-      grafen_AIC <- AIC(grafen_model)
-      grafen_p_value <- coef(summary(grafen_model))[8]
-      results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "grafen", AIC = grafen_AIC, p_value = grafen_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(grafen_null_model)) {
-      grafen_null_AIC <- AIC(grafen_null_model)
-      results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "grafen_null", AIC = grafen_null_AIC, p_value = NA, stringsAsFactors = FALSE))
+      pagel_intercept = coef(summary(pagel_model))[1]
+      pagel_slope = coef(summary(pagel_model))[2]
+      pagel_r_squared = rsquared.gls(pagel_model)[[4]]
+      results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel", AIC = pagel_AIC, p_value = pagel_p_value, slope = pagel_slope, intercept = pagel_intercept, r_squared = pagel_r_squared, stringsAsFactors = FALSE))
       break
     }
   }
@@ -301,7 +196,7 @@ tvts_subset <- ReorderData(tvts_tree, tvts_subset, taxa.names="row names") # Reo
 genes_gc = names(gc_subset[4:14] %>%   select_if(~ length(unique(.)) >= 2 & !all(. == 0) & !all(. == 1)))
 genes_tvts = names(tvts_subset[4:14] %>%   select_if(~ length(unique(.)) >= 2 & !all(. == 0) & !all(. == 1)))
 
-results_gc_rate <- data.frame(gene = character(), lambda = numeric(), model = character(), AIC = numeric(), p_value = numeric(), stringsAsFactors = FALSE)
+results_gc_rate <- data.frame(gene = character(), lambda = numeric(), linear_AIC = numeric(), pglmm_AIC = numeric(), linear_p_value = numeric(), pglmm_p_value = numeric(), intercept = numeric(), slope = numeric(), r_squared = numeric(), stringsAsFactors = FALSE) # An empty data frame to store outputs
 results_tvts_ratio <- data.frame(gene = character(), lambda = numeric(), model = character(), AIC = numeric(), p_value = numeric(), stringsAsFactors = FALSE)
 
 # Loop through each gene
@@ -315,25 +210,12 @@ for (gene in genes_gc) {
   # Linear model statistics
   linear_AIC <- AIC(linear_model)
   linear_p_value <- coef(summary(linear_model))[8]
+  linear_intercept = coef(linear_model)[[1]]
+  linear_slope = coef(linear_model)[[2]]
+  linear_r_squared = summary(linear_model)$adj.r.squared
   
   # Add linear model results to the table
-  results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "linear", AIC = linear_AIC, p_value = linear_p_value, stringsAsFactors = FALSE))
-  
-  # Linear Null
-  linear_null_model <- lm(GC_rate ~ 1, data = gc_subset)
-  linear_null_AIC <- AIC(linear_null_model)
-  linear_null_p_value <- coef(summary(linear_null_model))[8]
-  
-  # Add linear null model results to the table
-  results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "linear_null", AIC = linear_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-  
-  # Fit PGLMM model
-  pglmm_model <- pglmm(GC_rate ~ gene_data + (1 | Species), data = gc_subset, family = "gaussian", cov_ranef = list(Species = gc_tree), REML = FALSE)
-  pglmm_AIC <- pglmm_model$AIC
-  pglmm_p_value <- pglmm_model$B.pvalue[[2]]
-  
-  # Add PGLMM model results to the table
-  results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "pglmm", AIC = pglmm_AIC, p_value = pglmm_p_value, stringsAsFactors = FALSE))
+  results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "linear", AIC = linear_AIC, p_value = linear_p_value, slope = linear_slope, intercept= linear_intercept, r_squared = linear_r_squared, stringsAsFactors = FALSE))
   
   # Adaptive lambda starting value search
   if (estimated_lambda <= 0.5) {
@@ -348,107 +230,13 @@ for (gene in genes_gc) {
       gls(GC_rate ~ gene_data, data = gc_subset, correlation = corPagel(lambda_starting, gc_tree, form = ~Species), method = "ML")
     }, error = function(e) NULL)
     
-    pagel_null_model <- tryCatch({    # Try null model with corPagel
-      gls(GC_rate ~ 1, data = gc_subset, correlation = corPagel(lambda_starting, gc_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
     if (!is.null(pagel_model)) {
       pagel_AIC <- AIC(pagel_model)
       pagel_p_value <- coef(summary(pagel_model))[8]
-      results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel", AIC = pagel_AIC, p_value = pagel_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(pagel_null_model)) {
-      pagel_null_AIC <- AIC(pagel_null_model)
-      results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel_null", AIC = pagel_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-      break
-    }
-  }
-  
-  for (lambda_starting in search_lambdas) {
-    blomberg_model <- tryCatch({    # Try corBlomberg
-      gls(GC_rate ~ gene_data, data = gc_subset, correlation = corBlomberg(lambda_starting, gc_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    blomberg_null_model <- tryCatch({    # Try null model with corBlomberg
-      gls(GC_rate ~ 1, data = gc_subset, correlation = corBlomberg(lambda_starting, gc_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    if (!is.null(blomberg_model)) {
-      blomberg_AIC <- AIC(blomberg_model)
-      blomberg_p_value <- coef(summary(blomberg_model))[8]
-      results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "blomberg", AIC = blomberg_AIC, p_value = blomberg_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(blomberg_null_model)) {
-      blomberg_null_AIC <- AIC(blomberg_null_model)
-      results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "blomberg_null", AIC = blomberg_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-      break
-    }
-  }
-    
-  for (lambda_starting in search_lambdas) {
-    brownian_model <- tryCatch({    # Try corBrownian
-      gls(GC_rate ~ gene_data, data = gc_subset, correlation = corBrownian(lambda_starting, gc_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    brownian_null_model <- tryCatch({    # Try null model with corBrownian
-      gls(GC_rate ~ 1, data = gc_subset, correlation = corBrownian(lambda_starting, gc_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    if (!is.null(brownian_model)) {
-      brownian_AIC <- AIC(brownian_model)
-      brownian_p_value <- coef(summary(brownian_model))[8]
-      results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "brownian", AIC = brownian_AIC, p_value = brownian_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(brownian_null_model)) {
-      brownian_null_AIC <- AIC(brownian_null_model)
-      results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "brownian_null", AIC = brownian_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-      break
-    }
-  }
-  
-  for (lambda_starting in search_lambdas) {
-    martins_model <- tryCatch({    # Try corMartins
-      gls(GC_rate ~ gene_data, data = gc_subset, correlation = corMartins(lambda_starting, gc_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    martins_null_model <- tryCatch({    # Try null model with corMartins
-      gls(GC_rate ~ 1, data = gc_subset, correlation = corMartins(lambda_starting, gc_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    if (!is.null(martins_model)) {
-      martins_AIC <- AIC(martins_model)
-      martins_p_value <- coef(summary(martins_model))[8]
-      results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "martins", AIC = martins_AIC, p_value = martins_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(martins_null_model)) {
-      martins_null_AIC <- AIC(martins_null_model)
-      results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "martins_null", AIC = martins_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-      break
-    }
-  }
-  
-  for (lambda_starting in search_lambdas) {
-    grafen_model <- tryCatch({    # Try corGrafen
-      gls(GC_rate ~ gene_data, data = gc_subset, correlation = corGrafen(lambda_starting, gc_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    grafen_null_model <- tryCatch({    # Try null model with corGrafen
-      gls(GC_rate ~ 1, data = gc_subset, correlation = corGrafen(lambda_starting, gc_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    if (!is.null(grafen_model)) {
-      grafen_AIC <- AIC(grafen_model)
-      grafen_p_value <- coef(summary(grafen_model))[8]
-      results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "grafen", AIC = grafen_AIC, p_value = grafen_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(grafen_null_model)) {
-      grafen_null_AIC <- AIC(grafen_null_model)
-      results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "grafen_null", AIC = grafen_null_AIC, p_value = NA, stringsAsFactors = FALSE))
+      pagel_intercept = coef(summary(pagel_model))[1]
+      pagel_slope = coef(summary(pagel_model))[2]
+      pagel_r_squared = rsquared.gls(pagel_model)[[4]]
+      results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel", AIC = pagel_AIC, p_value = pagel_p_value, slope = pagel_slope, intercept = pagel_intercept, r_squared = pagel_r_squared, stringsAsFactors = FALSE))
       break
     }
   }
@@ -465,25 +253,12 @@ for (gene in genes_tvts) {
   # Linear model statistics
   linear_AIC <- AIC(linear_model)
   linear_p_value <- coef(summary(linear_model))[8]
+  linear_intercept = coef(linear_model)[[1]]
+  linear_slope = coef(linear_model)[[2]]
+  linear_r_squared = summary(linear_model)$adj.r.squared
   
   # Add linear model results to the table
-  results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "linear", AIC = linear_AIC, p_value = linear_p_value, stringsAsFactors = FALSE))
-  
-  # Linear Null
-  linear_null_model <- lm(tvts_ratio ~ 1, data = tvts_subset)
-  linear_null_AIC <- AIC(linear_null_model)
-  linear_null_p_value <- coef(summary(linear_null_model))[8]
-  
-  # Add linear null model results to the table
-  results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "linear_null", AIC = linear_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-  
-  # Fit PGLMM model
-  pglmm_model <- pglmm(tvts_ratio ~ gene_data + (1 | Species), data = tvts_subset, family = "gaussian", cov_ranef = list(Species = tvts_tree), REML = FALSE)
-  pglmm_AIC <- pglmm_model$AIC
-  pglmm_p_value <- pglmm_model$B.pvalue[[2]]
-  
-  # Add PGLMM model results to the table
-  results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "pglmm", AIC = pglmm_AIC, p_value = pglmm_p_value, stringsAsFactors = FALSE))
+  results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "linear", AIC = linear_AIC, p_value = linear_p_value, slope = linear_slope, intercept= linear_intercept, r_squared = linear_r_squared, stringsAsFactors = FALSE))
   
   # Adaptive lambda starting value search
   if (estimated_lambda <= 0.5) {
@@ -498,115 +273,90 @@ for (gene in genes_tvts) {
       gls(tvts_ratio ~ gene_data, data = tvts_subset, correlation = corPagel(lambda_starting, tvts_tree, form = ~Species), method = "ML")
     }, error = function(e) NULL)
     
-    pagel_null_model <- tryCatch({    # Try null model with corPagel
-      gls(tvts_ratio ~ 1, data = tvts_subset, correlation = corPagel(lambda_starting, tvts_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
     if (!is.null(pagel_model)) {
       pagel_AIC <- AIC(pagel_model)
       pagel_p_value <- coef(summary(pagel_model))[8]
-      results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel", AIC = pagel_AIC, p_value = pagel_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(pagel_null_model)) {
-      pagel_null_AIC <- AIC(pagel_null_model)
-      results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel_null", AIC = pagel_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-      break
-    }
-  }
-  
-  for (lambda_starting in search_lambdas) {
-    blomberg_model <- tryCatch({    # Try corBlomberg
-      gls(tvts_ratio ~ gene_data, data = tvts_subset, correlation = corBlomberg(lambda_starting, tvts_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    blomberg_null_model <- tryCatch({    # Try null model with corBlomberg
-      gls(tvts_ratio ~ 1, data = tvts_subset, correlation = corBlomberg(lambda_starting, tvts_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    if (!is.null(blomberg_model)) {
-      blomberg_AIC <- AIC(blomberg_model)
-      blomberg_p_value <- coef(summary(blomberg_model))[8]
-      results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "blomberg", AIC = blomberg_AIC, p_value = blomberg_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(blomberg_null_model)) {
-      blomberg_null_AIC <- AIC(blomberg_null_model)
-      results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "blomberg_null", AIC = blomberg_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-      break
-    }
-  }
-  
-  for (lambda_starting in search_lambdas) {
-    brownian_model <- tryCatch({    # Try corBrownian
-      gls(tvts_ratio ~ gene_data, data = tvts_subset, correlation = corBrownian(lambda_starting, tvts_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    brownian_null_model <- tryCatch({    # Try null model with corBrownian
-      gls(tvts_ratio ~ 1, data = tvts_subset, correlation = corBrownian(lambda_starting, tvts_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    if (!is.null(brownian_model)) {
-      brownian_AIC <- AIC(brownian_model)
-      brownian_p_value <- coef(summary(brownian_model))[8]
-      results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "brownian", AIC = brownian_AIC, p_value = brownian_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(brownian_null_model)) {
-      brownian_null_AIC <- AIC(brownian_null_model)
-      results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "brownian_null", AIC = brownian_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-      break
-    }
-  }
-  
-  for (lambda_starting in search_lambdas) {
-    martins_model <- tryCatch({    # Try corMartins
-      gls(tvts_ratio ~ gene_data, data = tvts_subset, correlation = corMartins(lambda_starting, tvts_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    martins_null_model <- tryCatch({    # Try null model with corMartins
-      gls(tvts_ratio ~ 1, data = tvts_subset, correlation = corMartins(lambda_starting, tvts_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    if (!is.null(martins_model)) {
-      martins_AIC <- AIC(martins_model)
-      martins_p_value <- coef(summary(martins_model))[8]
-      results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "martins", AIC = martins_AIC, p_value = martins_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(martins_null_model)) {
-      martins_null_AIC <- AIC(martins_null_model)
-      results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "martins_null", AIC = martins_null_AIC, p_value = NA, stringsAsFactors = FALSE))
-      break
-    }
-  }
-  
-  for (lambda_starting in search_lambdas) {
-    grafen_model <- tryCatch({    # Try corGrafen
-      gls(tvts_ratio ~ gene_data, data = tvts_subset, correlation = corGrafen(lambda_starting, tvts_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    grafen_null_model <- tryCatch({    # Try null model with corGrafen
-      gls(tvts_ratio ~ 1, data = tvts_subset, correlation = corGrafen(lambda_starting, tvts_tree, form = ~Species), method = "ML")
-    }, error = function(e) NULL)
-    
-    if (!is.null(grafen_model)) {
-      grafen_AIC <- AIC(grafen_model)
-      grafen_p_value <- coef(summary(grafen_model))[8]
-      results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "grafen", AIC = grafen_AIC, p_value = grafen_p_value, stringsAsFactors = FALSE))
-    }
-    
-    if (!is.null(grafen_null_model)) {
-      grafen_null_AIC <- AIC(grafen_null_model)
-      results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "grafen_null", AIC = grafen_null_AIC, p_value = NA, stringsAsFactors = FALSE))
+      pagel_intercept = coef(summary(pagel_model))[1]
+      pagel_slope = coef(summary(pagel_model))[2]
+      pagel_r_squared = rsquared.gls(pagel_model)[[4]]
+      results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel", AIC = pagel_AIC, p_value = pagel_p_value, slope = pagel_slope, intercept = pagel_intercept, r_squared = pagel_r_squared, stringsAsFactors = FALSE))
       break
     }
   }
 }
 
+#### All genes together analyses ####
+linear_model <- lm(Log_Wattersons_Corrected_Overall_Rate ~ mutT + mutY + mutS + mutH + dnaQ + ung + mutM + nfi, data = reordered_subset_data)
+residuals_test <- residuals(linear_model)  # Get residuals and compute lambda
+estimated_lambda <- phylosig(two_strain_tree, residuals_test, method = "lambda")[[1]]
+
+if (estimated_lambda <= 0.5) {
+  search_lambdas <- seq(0, 1, by = 0.1)
+} else {
+  search_lambdas <- rev(seq(0, 1, by = 0.1))
+}
+
+for (lambda_starting in search_lambdas) {
+  pagel_model <- tryCatch({    # Try corPagel
+    gls(Log_Wattersons_Corrected_Overall_Rate ~ mutT + mutY + mutS + mutH + dnaQ + ung + mutM + nfi, data = reordered_subset_data, correlation = corPagel(lambda_starting, two_strain_tree, form = ~Species), method = "ML")
+  }, error = function(e) NULL)
+}
+
+pagel_coefs = as.data.frame(coef(summary(pagel_model)))
+linear_coefs = as.data.frame(coef(summary(linear_model)))
+watterson_all_genes = merge(pagel_coefs, linear_coefs, by = 0, all = TRUE)
+colnames(watterson_all_genes) = c("Variables", "PGLS_Estimate", "PGLS_St_error", "PGLS_t_value", "PGLS_p_value", "LM_Estimate", "LM_St_error", "LM_t_value", "LM_p_value")
+write.csv(watterson_all_genes, "results/results_watterson_all_genes.csv")
+
+linear_model <- lm(tvts_ratio ~ mutT + mutY + mutS + mutH + dnaQ + ung + mutM + nfi + uvrA + uvrD, data = tvts_subset)
+residuals_test <- residuals(linear_model)  # Get residuals and compute lambda
+estimated_lambda <- phylosig(tvts_tree, residuals_test, method = "lambda")[[1]]
+
+if (estimated_lambda <= 0.5) {
+  search_lambdas <- seq(0, 1, by = 0.1)
+} else {
+  search_lambdas <- rev(seq(0, 1, by = 0.1))
+}
+
+for (lambda_starting in search_lambdas) {
+  pagel_model <- tryCatch({    # Try corPagel
+    gls(tvts_ratio ~ mutT + mutY + mutS + mutH + dnaQ + ung + mutM + nfi, data = tvts_subset, correlation = corPagel(lambda_starting, tvts_tree, form = ~Species), method = "ML")
+  }, error = function(e) NULL)
+}
+
+pagel_coefs = as.data.frame(coef(summary(pagel_model)))
+linear_coefs = as.data.frame(coef(summary(linear_model)))
+tvts_all_genes = merge(pagel_coefs, linear_coefs, by = 0, all = TRUE)
+colnames(tvts_all_genes) = c("Variables", "PGLS_Estimate", "PGLS_St_error", "PGLS_t_value", "PGLS_p_value", "LM_Estimate", "LM_St_error", "LM_t_value", "LM_p_value")
+write.csv(tvts_all_genes, "results/results_tvts_all_genes.csv")
+
+
+linear_model <- lm(GC_rate ~ mutT + mutY + mutS + mutH + dnaQ + ung + mutM + nfi, data = gc_subset)
+residuals_test <- residuals(linear_model)  # Get residuals and compute lambda
+estimated_lambda <- phylosig(gc_tree, residuals_test, method = "lambda")[[1]]
+
+if (estimated_lambda <= 0.5) {
+  search_lambdas <- seq(0, 1, by = 0.1)
+} else {
+  search_lambdas <- rev(seq(0, 1, by = 0.1))
+}
+
+for (lambda_starting in search_lambdas) {
+  pagel_model <- tryCatch({    # Try corPagel
+    gls(GC_rate ~ mutT + mutY + mutS + mutH + dnaQ + ung + mutM + nfi, data = gc_subset, correlation = corPagel(lambda_starting, gc_tree, form = ~Species), method = "ML")
+  }, error = function(e) NULL)
+}
+
+pagel_coefs = as.data.frame(coef(summary(pagel_model)))
+linear_coefs = as.data.frame(coef(summary(linear_model)))
+gc_all_genes = merge(pagel_coefs, linear_coefs, by = 0, all = TRUE)
+colnames(gc_all_genes) = c("Variables", "PGLS_Estimate", "PGLS_St_error", "PGLS_t_value", "PGLS_p_value", "LM_Estimate", "LM_St_error", "LM_t_value", "LM_p_value")
+write.csv(gc_all_genes, "results/results_gc_all_genes.csv")
+
+
 # Sort the results by gene alphabetically and then by AIC in ascending order
-results_tvts_ratio <- results_tvts_ratio %>%  arrange(gene, AIC)
-results_gc_rate <- results_gc_rate %>%  arrange(gene, AIC)
+results_tvts_ratio <- results_tvts_ratio %>%  arrange(gene, model)
+results_gc_rate <- results_gc_rate %>%  arrange(gene, model)
 
 summary_table_wattersons = data.frame(gene = character(), lambda = numeric(), Mean_with_Gene = numeric(), SE_with_Gene = numeric(), Mean_without_Gene = numeric(), SE_without_Gene = numeric(), Ratio_w_wo = numeric(), stringsAsFactors = FALSE)
 for(gene in genes_tvts){
@@ -616,7 +366,7 @@ for(gene in genes_tvts){
   SE_with_Gene = sd(reordered_subset_data$Log_Wattersons_Corrected_Overall_Rate[reordered_subset_data[[gene]] == 1], na.rm = TRUE) / sqrt(sum(reordered_subset_data[[gene]] == 1, na.rm = TRUE))
   SE_without_Gene = sd(reordered_subset_data$Log_Wattersons_Corrected_Overall_Rate[reordered_subset_data[[gene]] == 0], na.rm = TRUE) / sqrt(sum(reordered_subset_data[[gene]] == 0, na.rm = TRUE))
   Ratio_w_wo = sum(reordered_subset_data[[gene]] == 0, na.rm = TRUE) / sum(reordered_subset_data[[gene]] == 1, na.rm = TRUE)
-  summary_table_wattersons = rbind(summary_table_wattersons, data.frame(gene = gene, lambda = lambda, Mean_with_Gene = Mean_with_Gene, Mean_without_Gene = Mean_without_Gene, Ratio_w_wo = Ratio_w_wo))
+  summary_table_wattersons = rbind(summary_table_wattersons, data.frame(gene = gene, lambda = lambda, Mean_with_Gene = Mean_with_Gene, Mean_without_Gene = Mean_without_Gene, Ratio_w_wo = Ratio_w_wo, SE_with_Gene = SE_with_Gene,SE_without_Gene = SE_without_Gene))
 }
 
 summary_table_tvts = data.frame(gene = character(), lambda = numeric(), Mean_with_Gene = numeric(), SE_with_Gene = numeric(), Mean_without_Gene = numeric(), SE_without_Gene = numeric(), Ratio_w_wo = numeric(), stringsAsFactors = FALSE)
@@ -627,7 +377,7 @@ for(gene in genes_tvts){
   SE_with_Gene = sd(tvts_subset$tvts_ratio[tvts_subset[[gene]] == 1], na.rm = TRUE) / sqrt(sum(tvts_subset[[gene]] == 1, na.rm = TRUE))
   SE_without_Gene = sd(tvts_subset$tvts_ratio[tvts_subset[[gene]] == 0], na.rm = TRUE) / sqrt(sum(tvts_subset[[gene]] == 0, na.rm = TRUE))
   Ratio_w_wo = sum(tvts_subset[[gene]] == 0, na.rm = TRUE) / sum(tvts_subset[[gene]] == 1, na.rm = TRUE)
-  summary_table_tvts = rbind(summary_table_tvts, data.frame(gene = gene, lambda = lambda, Mean_with_Gene = Mean_with_Gene, Mean_without_Gene = Mean_without_Gene, Ratio_w_wo = Ratio_w_wo))
+  summary_table_tvts = rbind(summary_table_tvts, data.frame(gene = gene, lambda = lambda, Mean_with_Gene = Mean_with_Gene, Mean_without_Gene = Mean_without_Gene, Ratio_w_wo = Ratio_w_wo, SE_with_Gene = SE_with_Gene,SE_without_Gene = SE_without_Gene))
 }
 summary_table_gc = data.frame(gene = character(), lambda = numeric(), Mean_with_Gene = numeric(), SE_with_Gene = numeric(), Mean_without_Gene = numeric(), SE_without_Gene = numeric(), Ratio_w_wo = numeric(), stringsAsFactors = FALSE)
 for(gene in genes_gc){
@@ -639,17 +389,12 @@ for(gene in genes_gc){
   Ratio_w_wo = sum(gc_subset[[gene]] == 0, na.rm = TRUE) / sum(gc_subset[[gene]] == 1, na.rm = TRUE)
   summary_table_gc = rbind(summary_table_gc, data.frame(gene = gene, lambda = lambda, Mean_with_Gene = Mean_with_Gene, SE_with_Gene = SE_with_Gene, Mean_without_Gene = Mean_without_Gene, SE_without_Gene = SE_without_Gene, Ratio_w_wo = Ratio_w_wo))
 }
+write.csv(summary_table_wattersons, file ="results/summary_table_wattersons.csv")
+write.csv(summary_table_tvts, file ="results/summary_table_tvts.csv")
+write.csv(summary_table_gc, file ="results/summary_table_gc.csv")
 
-cat("The models with the best fits for log(Watterson's Diversity) are:\n"); data.frame(results_watterson %>% group_by(gene) %>% slice(which.min(AIC)) %>% select(gene, lambda, model, AIC, p_value))
-cat("The summary table for log(Watterson's Diversity) is:\n"); print(summary_table_wattersons)
-
-cat("The models with the best fits for log(Ts:Tv) are:\n"); data.frame(results_tvts_ratio %>% group_by(gene) %>% slice(which.min(AIC)) %>% select(gene, lambda, model, AIC, p_value))
-cat("The summary table for log(Ts:Tv) is:\n"); print(summary_table_tvts)
-
-cat("The models with the best fitsfor log(GC > AT) are:\n"); data.frame(results_gc_rate %>% group_by(gene) %>% slice(which.min(AIC)) %>% select(gene, lambda, model, AIC, p_value))
-cat("The summary table for log(GC > AT) is:\n"); print(summary_table_gc)
-
-cat("\n For all AICs that have not been included in the above summaries, look at the files: results_watterson, results_gc_rate, results_tvts_ratio")
-
+write.csv(results_gc_rate, file ="results/results_gc.csv")
+write.csv(results_watterson, file ="results/results_watterson.csv")
+write.csv(results_tvts_ratio, file ="results/results_tvts.csv")
 
 

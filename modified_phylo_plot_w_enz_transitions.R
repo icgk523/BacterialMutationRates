@@ -125,7 +125,7 @@ reordered_subset_data <- ReorderData(two_strain_tree, subset_data, taxa.names="r
 reordered_subset_data$Log_Wattersons_Corrected_Overall_Rate <- as.numeric(reordered_subset_data$Log_Wattersons_Corrected_Overall_Rate) # Keep it numeric
 
 genes = names(subset_data[4:14]) # names of genes we're looking at
-results_watterson <- data.frame(gene = character(), lambda = numeric(), linear_AIC = numeric(), pglmm_AIC = numeric(), linear_p_value = numeric(), pglmm_p_value = numeric(), intercept = numeric(), slope = numeric(), r_squared = numeric(), stringsAsFactors = FALSE) # An empty data frame to store outputs
+results_watterson <- data.frame(gene = character(), lambda = numeric(), linear_AIC = numeric(), pglmm_AIC = numeric(), linear_p_value = numeric(), pglmm_p_value = numeric(), intercept = numeric(), intercept_se = numeric(), slope = numeric(), slope_se = numeric(), r_squared = numeric(), stringsAsFactors = FALSE) # An empty data frame to store outputs
 
 
 for (gene in genes) {
@@ -140,10 +140,13 @@ for (gene in genes) {
   linear_p_value <- coef(summary(linear_model))[8]
   linear_intercept = coef(linear_model)[[1]]
   linear_slope = coef(linear_model)[[2]]
+  linear_intercept_se = coef(summary(linear_model))[[3]]
+  linear_slope_se = coef(summary(linear_model))[[4]]
+  
   linear_r_squared = summary(linear_model)$adj.r.squared
   
   # Add linear model results to the table
-  results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "linear", AIC = linear_AIC, p_value = linear_p_value, slope = linear_slope, intercept= linear_intercept, r_squared = linear_r_squared, stringsAsFactors = FALSE))
+  results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "linear", AIC = linear_AIC, p_value = linear_p_value, slope = linear_slope,  slope_se = linear_slope_se, intercept= linear_intercept, intercept_se = linear_intercept_se, r_squared = linear_r_squared,  stringsAsFactors = FALSE))
 
   # Adaptive lambda starting value search
   if (estimated_lambda <= 0.5) {
@@ -163,8 +166,10 @@ for (gene in genes) {
       pagel_p_value <- coef(summary(pagel_model))[8]
       pagel_intercept = coef(summary(pagel_model))[1]
       pagel_slope = coef(summary(pagel_model))[2]
+      pagel_intercept_se = coef(summary(pagel_model))[3]
+      pagel_slope_se = coef(summary(pagel_model))[4]
       pagel_r_squared = rsquared.gls(pagel_model)[[4]]
-      results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel", AIC = pagel_AIC, p_value = pagel_p_value, slope = pagel_slope, intercept = pagel_intercept, r_squared = pagel_r_squared, stringsAsFactors = FALSE))
+      results_watterson <- rbind(results_watterson, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel", AIC = pagel_AIC, p_value = pagel_p_value, slope = pagel_slope, intercept = pagel_intercept, r_squared = pagel_r_squared, intercept_se = pagel_intercept_se, slope_se = pagel_slope_se, stringsAsFactors = FALSE))
       break
     }
   }
@@ -212,10 +217,12 @@ for (gene in genes_gc) {
   linear_p_value <- coef(summary(linear_model))[8]
   linear_intercept = coef(linear_model)[[1]]
   linear_slope = coef(linear_model)[[2]]
+  linear_intercept_se = coef(summary(linear_model))[[3]]
+  linear_slope_se = coef(summary(linear_model))[[4]]
   linear_r_squared = summary(linear_model)$adj.r.squared
   
   # Add linear model results to the table
-  results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "linear", AIC = linear_AIC, p_value = linear_p_value, slope = linear_slope, intercept= linear_intercept, r_squared = linear_r_squared, stringsAsFactors = FALSE))
+  results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "linear", AIC = linear_AIC, p_value = linear_p_value, slope = linear_slope, slope_se = linear_slope_se, intercept= linear_intercept, intercept_se = linear_intercept_se, r_squared = linear_r_squared,   stringsAsFactors = FALSE))
   
   # Adaptive lambda starting value search
   if (estimated_lambda <= 0.5) {
@@ -235,8 +242,10 @@ for (gene in genes_gc) {
       pagel_p_value <- coef(summary(pagel_model))[8]
       pagel_intercept = coef(summary(pagel_model))[1]
       pagel_slope = coef(summary(pagel_model))[2]
+      pagel_intercept_se = coef(summary(pagel_model))[3]
+      pagel_slope_se = coef(summary(pagel_model))[4]
       pagel_r_squared = rsquared.gls(pagel_model)[[4]]
-      results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel", AIC = pagel_AIC, p_value = pagel_p_value, slope = pagel_slope, intercept = pagel_intercept, r_squared = pagel_r_squared, stringsAsFactors = FALSE))
+      results_gc_rate <- rbind(results_gc_rate, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel", AIC = pagel_AIC, p_value = pagel_p_value, slope = pagel_slope, intercept = pagel_intercept, r_squared = pagel_r_squared, intercept_se = pagel_intercept_se, slope_se = pagel_slope_se, stringsAsFactors = FALSE))
       break
     }
   }
@@ -255,10 +264,12 @@ for (gene in genes_tvts) {
   linear_p_value <- coef(summary(linear_model))[8]
   linear_intercept = coef(linear_model)[[1]]
   linear_slope = coef(linear_model)[[2]]
+  linear_intercept_se = coef(summary(linear_model))[[3]]
+  linear_slope_se = coef(summary(linear_model))[[4]]
   linear_r_squared = summary(linear_model)$adj.r.squared
   
   # Add linear model results to the table
-  results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "linear", AIC = linear_AIC, p_value = linear_p_value, slope = linear_slope, intercept= linear_intercept, r_squared = linear_r_squared, stringsAsFactors = FALSE))
+  results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "linear", AIC = linear_AIC, p_value = linear_p_value, slope = linear_slope, slope_se = linear_slope_se, intercept= linear_intercept, intercept_se = linear_intercept_se, r_squared = linear_r_squared, stringsAsFactors = FALSE))
   
   # Adaptive lambda starting value search
   if (estimated_lambda <= 0.5) {
@@ -278,8 +289,10 @@ for (gene in genes_tvts) {
       pagel_p_value <- coef(summary(pagel_model))[8]
       pagel_intercept = coef(summary(pagel_model))[1]
       pagel_slope = coef(summary(pagel_model))[2]
+      pagel_intercept_se = coef(summary(pagel_model))[3]
+      pagel_slope_se = coef(summary(pagel_model))[4]
       pagel_r_squared = rsquared.gls(pagel_model)[[4]]
-      results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel", AIC = pagel_AIC, p_value = pagel_p_value, slope = pagel_slope, intercept = pagel_intercept, r_squared = pagel_r_squared, stringsAsFactors = FALSE))
+      results_tvts_ratio <- rbind(results_tvts_ratio, data.frame(gene = gene, lambda = estimated_lambda, model = "pagel", AIC = pagel_AIC, p_value = pagel_p_value, slope = pagel_slope, intercept = pagel_intercept, r_squared = pagel_r_squared, intercept_se = pagel_intercept_se, slope_se = pagel_slope_se, stringsAsFactors = FALSE))
       break
     }
   }
@@ -305,7 +318,7 @@ for (lambda_starting in search_lambdas) {
 pagel_coefs = as.data.frame(coef(summary(pagel_model)))
 linear_coefs = as.data.frame(coef(summary(linear_model)))
 watterson_all_genes = merge(pagel_coefs, linear_coefs, by = 0, all = TRUE)
-colnames(watterson_all_genes) = c("Variables", "PGLS_Estimate", "PGLS_St_error", "PGLS_t_value", "PGLS_p_value", "LM_Estimate", "LM_St_error", "LM_t_value", "LM_p_value")
+colnames(watterson_all_genes) = c("Variables", "PGLS_Estimate", "PGLS_SE", "PGLS_t_value", "PGLS_p_value", "LM_Estimate", "LM_SE", "LM_t_value", "LM_p_value")
 write.csv(watterson_all_genes, "results/results_watterson_all_genes.csv")
 
 linear_model <- lm(tvts_ratio ~ mutT + mutY + mutS + mutH + dnaQ + ung + mutM + nfi + uvrA + uvrD, data = tvts_subset)
@@ -327,7 +340,7 @@ for (lambda_starting in search_lambdas) {
 pagel_coefs = as.data.frame(coef(summary(pagel_model)))
 linear_coefs = as.data.frame(coef(summary(linear_model)))
 tvts_all_genes = merge(pagel_coefs, linear_coefs, by = 0, all = TRUE)
-colnames(tvts_all_genes) = c("Variables", "PGLS_Estimate", "PGLS_St_error", "PGLS_t_value", "PGLS_p_value", "LM_Estimate", "LM_St_error", "LM_t_value", "LM_p_value")
+colnames(tvts_all_genes) = c("Variables", "PGLS_Estimate", "PGLS_SE", "PGLS_t_value", "PGLS_p_value", "LM_Estimate", "LM_SE", "LM_t_value", "LM_p_value")
 write.csv(tvts_all_genes, "results/results_tvts_all_genes.csv")
 
 
@@ -350,7 +363,7 @@ for (lambda_starting in search_lambdas) {
 pagel_coefs = as.data.frame(coef(summary(pagel_model)))
 linear_coefs = as.data.frame(coef(summary(linear_model)))
 gc_all_genes = merge(pagel_coefs, linear_coefs, by = 0, all = TRUE)
-colnames(gc_all_genes) = c("Variables", "PGLS_Estimate", "PGLS_St_error", "PGLS_t_value", "PGLS_p_value", "LM_Estimate", "LM_St_error", "LM_t_value", "LM_p_value")
+colnames(gc_all_genes) = c("Variables", "PGLS_Estimate", "PGLS_SE", "PGLS_t_value", "PGLS_p_value", "LM_Estimate", "LM_SE", "LM_t_value", "LM_p_value")
 write.csv(gc_all_genes, "results/results_gc_all_genes.csv")
 
 

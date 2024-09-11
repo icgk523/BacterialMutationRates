@@ -126,13 +126,15 @@ reordered_subset_data$Log_Wattersons_Corrected_Overall_Rate <- as.numeric(reorde
 
 reordered_subset_data$total_genes = rowSums(reordered_subset_data[, 4:14], na.rm = TRUE) # Calculate column for sum of genes
 reordered_subset_data$total_genes_wo_ung = rowSums(reordered_subset_data[, c(4:10, 12:14)], na.rm = TRUE) # Calculate column for sum of genes without ung
+reordered_subset_data$total_genes_wo_ind_sig = rowSums(reordered_subset_data[, c(4:8, 13)], na.rm = TRUE) # Calculate column for sum of genes without ung
 
 reordered_subset_data <- reordered_subset_data[, c(1:14, # Move these to columns 15 and 16
                                                    which(names(reordered_subset_data) == "total_genes"), 
                                                    which(names(reordered_subset_data) == "total_genes_wo_ung"), 
-                                                   15:(ncol(reordered_subset_data)-2))]
+                                                   which(names(reordered_subset_data) == "total_genes_wo_ind_sig"), 
+                                                   15:(ncol(reordered_subset_data)-3))]
 
-genes = names(reordered_subset_data[4:16]) # names of genes we're looking at
+genes = names(reordered_subset_data[4:17]) # names of genes we're looking at
 
 results_watterson <- data.frame(gene = character(), lambda = numeric(), linear_AIC = numeric(), pglmm_AIC = numeric(), linear_p_value = numeric(), pglmm_p_value = numeric(), intercept = numeric(), intercept_se = numeric(), slope = numeric(), slope_se = numeric(), r_squared = numeric(), stringsAsFactors = FALSE) # An empty data frame to store outputs
 

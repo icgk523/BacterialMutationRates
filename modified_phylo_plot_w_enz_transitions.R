@@ -124,7 +124,16 @@ rownames(subset_data) = subset_data$Species # Set rownames for reordering to phy
 reordered_subset_data <- ReorderData(two_strain_tree, subset_data, taxa.names="row names") # Reorder the data to be the same as the order in the phylogeny; 'row names' reflects the where the species names are
 reordered_subset_data$Log_Wattersons_Corrected_Overall_Rate <- as.numeric(reordered_subset_data$Log_Wattersons_Corrected_Overall_Rate) # Keep it numeric
 
-genes = names(subset_data[4:14]) # names of genes we're looking at
+reordered_subset_data$total_genes = rowSums(reordered_subset_data[, 4:14], na.rm = TRUE) # Calculate column for sum of genes
+reordered_subset_data$total_genes_wo_ung = rowSums(reordered_subset_data[, c(4:10, 12:14)], na.rm = TRUE) # Calculate column for sum of genes without ung
+
+reordered_subset_data <- reordered_subset_data[, c(1:14, # Move these to columns 15 and 16
+                                                   which(names(reordered_subset_data) == "total_genes"), 
+                                                   which(names(reordered_subset_data) == "total_genes_wo_ung"), 
+                                                   15:(ncol(reordered_subset_data)-2))]
+
+genes = names(reordered_subset_data[4:16]) # names of genes we're looking at
+
 results_watterson <- data.frame(gene = character(), lambda = numeric(), linear_AIC = numeric(), pglmm_AIC = numeric(), linear_p_value = numeric(), pglmm_p_value = numeric(), intercept = numeric(), intercept_se = numeric(), slope = numeric(), slope_se = numeric(), r_squared = numeric(), stringsAsFactors = FALSE) # An empty data frame to store outputs
 
 

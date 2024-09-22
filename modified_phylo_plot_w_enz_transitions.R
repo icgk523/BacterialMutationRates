@@ -422,3 +422,21 @@ write.csv(results_watterson, file ="results/results_watterson.csv")
 write.csv(results_tvts_ratio, file ="results/results_tvts.csv")
 
 
+#### Phylogenetic Tree with Gene Presence/Absence ####
+gene_presence = reordered_subset_data[, 4:14]
+gene_presence[]<- lapply(gene_presence, factor)
+
+gene_presence = ReorderData(two_strain_tree, gene_presence, taxa.names="row.names") # Reorder residual names to match phylogeny
+phylo.heatmap(two_strain_tree, gene_presence)
+
+p <- ggtree(two_strain_tree, layout = "circular") + 
+  geom_tiplab(size=2, align=TRUE, linesize=.25) + 
+  theme_tree() + 
+  theme(legend.position="none")  # Optionally remove legend
+
+p <- gheatmap(p, gene_presence, offset=2.5, width=0.45, 
+         colnames=TRUE, colnames_position="top", font.size=2.5, colnames_angle = 45, legend_title = NULL, hjust = 0.5) +
+  scale_x_ggtree() + 
+  theme(plot.margin = unit(c(-2, -3.5, -2, -2), "cm"))  # Increase margin around the entire figure
+p
+ggsave(plot = p, width = 15, height = 15, units = "in", filename = "results/gene_presence_phylogeny.pdf")    

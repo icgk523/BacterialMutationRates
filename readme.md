@@ -1,5 +1,5 @@
 # Project Summary
-* **Author:** George Kalogiannis (g.kalogiannis23@imperial.ac.uk), Adam Eyre-Walker (a.c.eyre-walker@sussex.ac.uk)
+* **Authors:** George Kalogiannis (g.kalogiannis23@imperial.ac.uk) and Adam Eyre-Walker (a.c.eyre-walker@sussex.ac.uk)
 * **Date:** August 2024
 
 ## Table of Contents

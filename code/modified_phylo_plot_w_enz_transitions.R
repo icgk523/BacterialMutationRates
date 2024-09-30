@@ -4,26 +4,27 @@ require(nlme)
 require(tidyverse)
 require(evobiR)
 require(phyr)
-source("rsquared_gls_function.R")
+require(ggtree)
+source("../code/rsquared_gls_function.R") # or use require(piecewiseSEM), once errors have been updated in the rsquared.gls() function code
 dir.create(file.path("results"), showWarnings = FALSE) # Create an output directory, suppress warnings if it already exists
 
 
-final_tree <- read.tree("20161115_pruned_tree_cutoff_0_03.nwk")
+final_tree <- read.tree("../data/20161115_pruned_tree_cutoff_0_03.nwk")
 enz_oi <- c("uvrA", "nfi", "mutT", "mutY", "mutL", "mutS", "mutH", "uvrD", "dnaQ", "ung", "mutM")
 
 enz_transitions <- sapply(enz_oi,function(x) NULL)
 
 for(i in 1:length(enz_oi)) {
-  enz_transitions[[enz_oi[i]]] <- read.csv(paste0("enz_transitions/20180206_",enz_oi[i],"_transitions.csv"),header = T,row.names = 1)
+  enz_transitions[[enz_oi[i]]] <- read.csv(paste0("../data/enz_transitions/20180206_",enz_oi[i],"_transitions.csv"),header = T,row.names = 1)
 }
 
-orig_pa_matrix <- read.csv("phylo_full_table.csv", header = T, row.names = NULL)
+orig_pa_matrix <- read.csv("../data/phylo_full_table.csv", header = T, row.names = NULL)
 
 #### changing the tree tip labels to species names ####
 final_tree$tip.label <- orig_pa_matrix$ncbi_name[match(final_tree$tip.label, orig_pa_matrix$phylotree_tip_label)]
 
 #### filter based on species list ####
-complete_data <- read.csv("mutation_rate_data.csv")
+complete_data <- read.csv("../data/mutation_rate_data.csv")
 species_list <- complete_data$Species
 
 
@@ -109,8 +110,8 @@ plot(two_strain_tree, show.tip.label = T, edge.width = 1, cex = 0.5)
 plot(three_strain_tree, show.tip.label = T, edge.width = 1, cex = 0.5)
 
 # Save the trees
-write.tree(two_strain_tree, file = "two_strain_tree.nwk")
-write.tree(three_strain_tree, file = "three_strain_tree.nwk")
+write.tree(two_strain_tree, file = "../results/two_strain_tree.nwk")
+write.tree(three_strain_tree, file = "../results/three_strain_tree.nwk")
 
 
 #### Watterson's Analysis ####
@@ -330,7 +331,7 @@ pagel_coefs = as.data.frame(coef(summary(pagel_model)))
 linear_coefs = as.data.frame(coef(summary(linear_model)))
 watterson_all_genes = merge(pagel_coefs, linear_coefs, by = 0, all = TRUE)
 colnames(watterson_all_genes) = c("Variables", "PGLS_Estimate", "PGLS_SE", "PGLS_t_value", "PGLS_p_value", "LM_Estimate", "LM_SE", "LM_t_value", "LM_p_value")
-write.csv(watterson_all_genes, "results/results_watterson_all_genes.csv")
+write.csv(watterson_all_genes, "../results/results_watterson_all_genes.csv")
 
 linear_model <- lm(tvts_ratio ~ mutT + mutY + mutS + mutH + dnaQ + ung + mutM + nfi + uvrA + uvrD, data = tvts_subset)
 residuals_test <- residuals(linear_model)  # Get residuals and compute lambda
@@ -352,7 +353,7 @@ pagel_coefs = as.data.frame(coef(summary(pagel_model)))
 linear_coefs = as.data.frame(coef(summary(linear_model)))
 tvts_all_genes = merge(pagel_coefs, linear_coefs, by = 0, all = TRUE)
 colnames(tvts_all_genes) = c("Variables", "PGLS_Estimate", "PGLS_SE", "PGLS_t_value", "PGLS_p_value", "LM_Estimate", "LM_SE", "LM_t_value", "LM_p_value")
-write.csv(tvts_all_genes, "results/results_tvts_all_genes.csv")
+write.csv(tvts_all_genes, "../results/results_tvts_all_genes.csv")
 
 
 linear_model <- lm(GC_rate ~ mutT + mutY + mutS + mutH + dnaQ + ung + mutM + nfi, data = gc_subset)
@@ -375,7 +376,7 @@ pagel_coefs = as.data.frame(coef(summary(pagel_model)))
 linear_coefs = as.data.frame(coef(summary(linear_model)))
 gc_all_genes = merge(pagel_coefs, linear_coefs, by = 0, all = TRUE)
 colnames(gc_all_genes) = c("Variables", "PGLS_Estimate", "PGLS_SE", "PGLS_t_value", "PGLS_p_value", "LM_Estimate", "LM_SE", "LM_t_value", "LM_p_value")
-write.csv(gc_all_genes, "results/results_gc_all_genes.csv")
+write.csv(gc_all_genes, "../results/results_gc_all_genes.csv")
 
 
 # Sort the results by gene alphabetically and then by AIC in ascending order
@@ -413,13 +414,13 @@ for(gene in genes_gc){
   Ratio_w_wo = sum(gc_subset[[gene]] == 0, na.rm = TRUE) / sum(gc_subset[[gene]] == 1, na.rm = TRUE)
   summary_table_gc = rbind(summary_table_gc, data.frame(gene = gene, lambda = lambda, Mean_with_Gene = Mean_with_Gene, SE_with_Gene = SE_with_Gene, Mean_without_Gene = Mean_without_Gene, SE_without_Gene = SE_without_Gene, Ratio_w_wo = Ratio_w_wo))
 }
-write.csv(summary_table_wattersons, file ="results/summary_table_wattersons.csv")
-write.csv(summary_table_tvts, file ="results/summary_table_tvts.csv")
-write.csv(summary_table_gc, file ="results/summary_table_gc.csv")
+write.csv(summary_table_wattersons, file ="../results/summary_table_wattersons.csv")
+write.csv(summary_table_tvts, file ="../results/summary_table_tvts.csv")
+write.csv(summary_table_gc, file ="../results/summary_table_gc.csv")
 
-write.csv(results_gc_rate, file ="results/results_gc.csv")
-write.csv(results_watterson, file ="results/results_watterson.csv")
-write.csv(results_tvts_ratio, file ="results/results_tvts.csv")
+write.csv(results_gc_rate, file ="../results/results_gc.csv")
+write.csv(results_watterson, file ="../results/results_watterson.csv")
+write.csv(results_tvts_ratio, file ="../results/results_tvts.csv")
 
 
 #### Phylogenetic Tree with Gene Presence/Absence ####
@@ -427,7 +428,6 @@ gene_presence = reordered_subset_data[, 4:14]
 gene_presence[]<- lapply(gene_presence, factor)
 
 gene_presence = ReorderData(two_strain_tree, gene_presence, taxa.names="row.names") # Reorder residual names to match phylogeny
-phylo.heatmap(two_strain_tree, gene_presence)
 
 p <- ggtree(two_strain_tree, layout = "circular") + 
   geom_tiplab(size=2, align=TRUE, linesize=.25) + 
@@ -436,7 +436,7 @@ p <- ggtree(two_strain_tree, layout = "circular") +
 
 p <- gheatmap(p, gene_presence, offset=2.5, width=0.45, 
          colnames=TRUE, colnames_position="top", font.size=2.5, colnames_angle = 45, legend_title = NULL, hjust = 0.5) +
-  scale_x_ggtree() + 
+  scale_x_ggtree() +
   theme(plot.margin = unit(c(-2, -3.5, -2, -2), "cm"))  # Increase margin around the entire figure
 p
-ggsave(plot = p, width = 15, height = 15, units = "in", filename = "results/gene_presence_phylogeny.pdf")    
+ggsave(plot = p, width = 15, height = 15, units = "in", filename = "../results/gene_presence_phylogeny.pdf")    

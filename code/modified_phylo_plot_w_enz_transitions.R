@@ -6,7 +6,7 @@ require(evobiR)
 require(phyr)
 require(ggtree)
 source("../code/rsquared_gls_function.R") # or use require(piecewiseSEM), once errors have been updated in the rsquared.gls() function code
-dir.create(file.path("results"), showWarnings = FALSE) # Create an output directory, suppress warnings if it already exists
+dir.create(file.path("../results"), showWarnings = FALSE) # Create an output directory, suppress warnings if it already exists
 
 
 final_tree <- read.tree("../data/20161115_pruned_tree_cutoff_0_03.nwk")

@@ -1,5 +1,7 @@
 # Ignore anything
-.*
+.idea
+.RData
+.Rhistory
 
 # Except gitignore
 !.gitignore

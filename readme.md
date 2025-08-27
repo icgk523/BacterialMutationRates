@@ -1,12 +1,6 @@
-# Project Summary
-* **Authors:** George Kalogiannis (g.kalogiannis23@imperial.ac.uk) and Adam Eyre-Walker (a.c.eyre-walker@sussex.ac.uk)
-* **Date:** August 2024
 
-## Table of Contents
-* [Code](#code)
-* [Data](#data)
-* [Results](#results)
-
+This repository contains code that reproduces the main analyses of the following study:
+>Georgios Kalogiannis and Adam Eyre-Walker: <a href='https://doi.org/10.1093/gbe/evae216'>**The Effect of the Presence and Absence of DNA Repair Genes on the Rate and Pattern of Mutation in Bacteria**</a>. <i>Genome Biology and Evolution</i> 16, 10 (2024).
 
 ## Code
 Code directory contains the following R scripts. Please inspect each file before sourcing, as each may require various packages to be installed:
